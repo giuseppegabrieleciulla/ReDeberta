@@ -110,7 +110,8 @@ case ${init,,} in
 	--fp16 True \
 	--warmup 500 \
 	--learning_rate 7e-6 \
-	--train_batch_size 64 \
+	--train_batch_size 16 \
+	--accumulative_update 4 \
 	--cls_drop_out 0.3  \
 	--use_recurrent True \
 	--recurrent_layer 13 \
