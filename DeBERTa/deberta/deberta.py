@@ -51,7 +51,11 @@ class DeBERTa(torch.nn.Module):
             model_config.__dict__[k] = config.__dict__[k]
       config = copy.copy(model_config)
     self.embeddings = BertEmbeddings(config)
-    self.encoder = BertEncoder(config)
+    if getattr(config, 'use_recurrent', False):
+      from .recurrent_encoder import RecurrentBertEncoder
+      self.encoder = RecurrentBertEncoder(config)
+    else:
+      self.encoder = BertEncoder(config)
     self.config = config
     self.pre_trained = pre_trained
     self.apply_state(state)

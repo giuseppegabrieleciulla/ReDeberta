@@ -40,23 +40,6 @@ class SequenceClassificationModel(NNModule):
     self.dropout = StableDropout(drop_out)
     self.apply(self.init_weights)
     self.deberta.apply_state()
-    
-    if getattr(self.config, 'use_recurrent', False):
-      from ...deberta.recurrent_encoder import RecurrentBertEncoder
-      recurrent_layer_idx = getattr(self.config, 'recurrent_layer', 13)
-      recurrent_encoder = RecurrentBertEncoder(self.deberta.config)
-      
-      # Copy weights from the specific layer of the pre-trained encoder model
-      recurrent_encoder.layer.load_state_dict(self.deberta.encoder.layer[recurrent_layer_idx].state_dict())
-      
-      if hasattr(self.deberta.encoder, 'rel_embeddings'):
-        recurrent_encoder.rel_embeddings.load_state_dict(self.deberta.encoder.rel_embeddings.state_dict())
-      if hasattr(self.deberta.encoder, 'LayerNorm'):
-        recurrent_encoder.LayerNorm.load_state_dict(self.deberta.encoder.LayerNorm.state_dict())
-      if hasattr(self.deberta.encoder, 'conv'):
-        recurrent_encoder.conv.load_state_dict(self.deberta.encoder.conv.state_dict())
-        
-      self.deberta.encoder = recurrent_encoder
 
   def forward(self, input_ids, type_ids=None, input_mask=None, labels=None, position_ids=None, **kwargs):
     outputs = self.deberta(input_ids, attention_mask=input_mask, token_type_ids=type_ids,
@@ -111,12 +94,39 @@ class SequenceClassificationModel(NNModule):
 
   def _pre_load_hook(self, state_dict, prefix, local_metadata, strict,
       missing_keys, unexpected_keys, error_msgs):
-    new_state = dict()
     bert_prefix = prefix + 'bert.'
     deberta_prefix = prefix + 'deberta.'
+    
+    # Prefix mapping (bert -> deberta)
     for k in list(state_dict.keys()):
       if k.startswith(bert_prefix):
         nk = deberta_prefix + k[len(bert_prefix):]
         value = state_dict[k]
         del state_dict[k]
         state_dict[nk] = value
+
+    # Recurrent weight mapping
+    if getattr(self.config, 'use_recurrent', False):
+      recurrent_layer_idx = getattr(self.config, 'recurrent_layer', 13)
+      if recurrent_layer_idx >= 0:
+        layer_prefix = deberta_prefix + f'encoder.layer.{recurrent_layer_idx}.'
+        target_prefix = deberta_prefix + 'encoder.layer.'
+        
+        for k in list(state_dict.keys()):
+          if k.startswith(layer_prefix):
+            nk = target_prefix + k[len(layer_prefix):]
+            if nk not in state_dict: # Don't overwrite if already there (unlikely)
+                state_dict[nk] = state_dict[k]
+          
+          # Clean up all other layer weights to avoid "unexpected keys" warnings
+          # if they belong to the encoder layers that no longer exist
+          import re
+          if re.match(rf"^{re.escape(deberta_prefix)}encoder\.layer\.\d+\.", k):
+            del state_dict[k]
+      else:
+        # Case for "no loading" (recurrent_layer < 0)
+        # We still might want to clean up the layers to avoid noise in logs
+        for k in list(state_dict.keys()):
+          import re
+          if re.match(rf"^{re.escape(deberta_prefix)}encoder\.layer\.\d+\.", k):
+            del state_dict[k]

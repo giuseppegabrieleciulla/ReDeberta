@@ -18,7 +18,12 @@ setup_glue_data $Task
 
 # The performance will be better when it's initialized with MNLI fine-tuned models
 init=$1
+layer=${2:-13}
 tag=$init
+if [[ "$init" == "recurrent-deberta-v3-large" ]]; then
+    tag="${init}_layer${layer}"
+fi
+
 case ${init,,} in
 	base)
 	init=$init-mnli
@@ -87,11 +92,11 @@ case ${init,,} in
 	--max_seq_len 320     \
 	--cls_drop_out 0.3  \
 	--use_recurrent True \
-	--recurrent_layer 13 \
+	--recurrent_layer $layer \
 	--ponder_penalty 1e-3"
 		;;
 	*)
-		echo "usage $0 <Pretrained model configuration>"
+		echo "usage $0 <Pretrained model configuration> [recurrent_layer_index]"
 		echo "Supported configurations"
 		echo "base - Pretrained DeBERTa v1 model with 140M parameters (12 layers, 768 hidden size)"
 		echo "large - Pretrained DeBERta v1 model with 380M parameters (24 layers, 1024 hidden size)"
@@ -108,4 +113,4 @@ python -m DeBERTa.apps.run --model_config config.json  \
 	--task_name $Task \
 	--data_dir $cache_dir/glue_tasks/$Task \
 	--init_model $init \
-	--output_dir /tmp/ttonly/$tag/$task  $parameters
+	--output_dir /tmp/ttonly/$tag/$Task  $parameters
