@@ -40,11 +40,30 @@ class SequenceClassificationModel(NNModule):
     self.dropout = StableDropout(drop_out)
     self.apply(self.init_weights)
     self.deberta.apply_state()
+    
+    if getattr(self.config, 'use_recurrent', False):
+      from ...deberta.recurrent_encoder import RecurrentBertEncoder
+      recurrent_layer_idx = getattr(self.config, 'recurrent_layer', 13)
+      recurrent_encoder = RecurrentBertEncoder(self.deberta.config)
+      
+      # Copy weights from the specific layer of the pre-trained encoder model
+      recurrent_encoder.layer.load_state_dict(self.deberta.encoder.layer[recurrent_layer_idx].state_dict())
+      
+      if hasattr(self.deberta.encoder, 'rel_embeddings'):
+        recurrent_encoder.rel_embeddings.load_state_dict(self.deberta.encoder.rel_embeddings.state_dict())
+      if hasattr(self.deberta.encoder, 'LayerNorm'):
+        recurrent_encoder.LayerNorm.load_state_dict(self.deberta.encoder.LayerNorm.state_dict())
+      if hasattr(self.deberta.encoder, 'conv'):
+        recurrent_encoder.conv.load_state_dict(self.deberta.encoder.conv.state_dict())
+        
+      self.deberta.encoder = recurrent_encoder
 
   def forward(self, input_ids, type_ids=None, input_mask=None, labels=None, position_ids=None, **kwargs):
     outputs = self.deberta(input_ids, attention_mask=input_mask, token_type_ids=type_ids,
         position_ids=position_ids, output_all_encoded_layers=True)
     encoder_layers = outputs['hidden_states']
+    ponder_cost = outputs.get('ponder_cost', None)
+    
     pooled_output = self.pooler(encoder_layers[-1])
     pooled_output = self.dropout(pooled_output)
     logits = self.classifier(pooled_output)
@@ -69,6 +88,10 @@ class SequenceClassificationModel(NNModule):
         log_softmax = torch.nn.LogSoftmax(-1)
         label_confidence = 1
         loss = -((log_softmax(logits)*labels).sum(-1)*label_confidence).mean()
+
+      if ponder_cost is not None and getattr(self.config, 'use_recurrent', False):
+        ponder_penalty = getattr(self.config, 'ponder_penalty', 1e-3)
+        loss = loss + ponder_penalty * ponder_cost.mean()
 
     return {
             'logits' : logits,

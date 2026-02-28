@@ -68,6 +68,19 @@ case ${init,,} in
 	--train_batch_size 64 \
 	--cls_drop_out 0.2 "
 		;;
+	recurrent-deberta-v3-large)
+	init=deberta-v3-large
+	parameters=" --num_train_epochs 6 \
+	--fp16 True \
+	--warmup 1000 \
+	--do_train \
+	--learning_rate 1e-5  \
+	--train_batch_size 64 \
+	--cls_drop_out 0.2  \
+	--use_recurrent True \
+	--recurrent_layer 13 \
+	--ponder_penalty 1e-3"
+		;;
 	*)
 		echo "usage $0 <Pretrained model configuration>"
 		echo "Supported configurations"

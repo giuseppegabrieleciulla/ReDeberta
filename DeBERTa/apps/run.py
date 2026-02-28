@@ -39,11 +39,34 @@ from ..optims import get_args as get_optims_args
 
 def create_model(args, num_labels, model_class_fn):
   # Prepare model
+  
+  # Inject recurrent config by patching ModelConfig momentarily
+  from ..deberta.config import ModelConfig
+  old_from_json = ModelConfig.from_json_file
+  def patched_from_json(cls, *a, **kw):
+      cfg = old_from_json(*a, **kw)
+      if hasattr(args, 'use_recurrent') and args.use_recurrent:
+          cfg.use_recurrent = args.use_recurrent
+          cfg.recurrent_layer = args.recurrent_layer
+          cfg.ponder_penalty = args.ponder_penalty
+      return cfg
+  ModelConfig.from_json_file = classmethod(patched_from_json)
+
   rank = getattr(args, 'rank', 0)
   init_model = args.init_model if rank<1 else None
   model = model_class_fn(init_model, args.model_config, num_labels=num_labels, \
       drop_out=args.cls_drop_out, \
       pre_trained = args.pre_trained)
+      
+  # Check if model has config and sync it up just in case
+  if getattr(args, 'use_recurrent', False):
+      if hasattr(model, 'config'):
+          model.config.use_recurrent = args.use_recurrent
+          model.config.recurrent_layer = args.recurrent_layer
+          model.config.ponder_penalty = args.ponder_penalty
+
+  ModelConfig.from_json_file = old_from_json
+
   if args.fp16:
     model = model.half()
 
@@ -455,6 +478,21 @@ def build_argument_parser():
             default="symmetric-kl",
             type=str,
             help="The loss function used to calculate adversarial loss. It can be one of symmetric-kl, kl or mse.")
+
+  parser.add_argument('--use_recurrent',
+            default=False,
+            type=boolean_string,
+            help="Whether to use the recurrent DeBERTa architecture.")
+
+  parser.add_argument('--recurrent_layer',
+            default=13,
+            type=int,
+            help="Which layer to use as the base for the recurrent model (0-indexed). default: 13 for 14th layer.")
+
+  parser.add_argument('--ponder_penalty',
+            default=1e-3,
+            type=float,
+            help="Penalty weight for the ponder cost.")
 
   parser.add_argument('--export_onnx_model',
             default=False,

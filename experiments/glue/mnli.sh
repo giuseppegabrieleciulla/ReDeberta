@@ -104,6 +104,18 @@ case ${init,,} in
 	--train_batch_size 64 \
 	--cls_drop_out 0.3 "
 		;;
+	recurrent-deberta-v3-large)
+	init=deberta-v3-large
+	parameters=" --num_train_epochs 2 \
+	--fp16 True \
+	--warmup 500 \
+	--learning_rate 7e-6 \
+	--train_batch_size 64 \
+	--cls_drop_out 0.3  \
+	--use_recurrent True \
+	--recurrent_layer 13 \
+	--ponder_penalty 1e-3"
+		;;
 	base)
 	parameters=" --num_train_epochs 3 \
 	--fp16 True \
