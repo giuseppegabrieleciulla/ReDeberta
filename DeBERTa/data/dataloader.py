@@ -21,7 +21,11 @@ import threading
 import traceback
 import os
 import time
-from torch._six import string_classes
+try:
+    from torch._six import string_classes
+except ImportError:
+    string_classes = (str, bytes)
+
 
 IS_WINDOWS = sys.platform == "win32"
 if IS_WINDOWS:
