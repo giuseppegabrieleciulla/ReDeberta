@@ -52,7 +52,7 @@ class DynamicDataset(Dataset):
     else:
       ext_params = None
     idx += self.index_offset
-    seed = idx
+    seed = int(idx)
     rng = random.Random(seed)
     # get seq length
     example_idx = self.shuffle_idx[idx%self.dataset_size]%self.ds_len
