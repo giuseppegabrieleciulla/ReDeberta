@@ -9,19 +9,33 @@ max_seq_length=512
 data_dir=$cache_dir/wiki103/spm_$max_seq_length
 
 function setup_wiki_data(){
-	task=$1
 	mkdir -p $cache_dir
 	if [[ ! -e  $cache_dir/spm.model ]]; then
 		wget -q https://huggingface.co/microsoft/deberta-v3-base/resolve/main/spm.model -O $cache_dir/spm.model
 	fi
 
 	if [[ ! -e  $data_dir/test.txt ]]; then
-		wget -q https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-v1.zip -O $cache_dir/wiki103.zip
-		unzip -j $cache_dir/wiki103.zip -d $cache_dir/wiki103
+		mkdir -p $cache_dir/wiki103
 		mkdir -p $data_dir
+		echo "Downloading WikiText-103 via HuggingFace datasets..."
+		python3 -c "
+from datasets import load_dataset
+import os
+cache = '$cache_dir/wiki103'
+ds = load_dataset('wikitext', 'wikitext-103-v1', trust_remote_code=True)
+for split, fname in [('train','wiki.train.tokens'),('validation','wiki.valid.tokens'),('test','wiki.test.tokens')]:
+    out = os.path.join(cache, fname)
+    if not os.path.exists(out):
+        with open(out, 'w', encoding='utf-8') as f:
+            for row in ds[split]:
+                line = row['text'].strip()
+                if line:
+                    f.write(line + '\n')
+        print(f'Wrote {out}')
+"
 		python ./prepare_data.py -i $cache_dir/wiki103/wiki.train.tokens -o $data_dir/train.txt --max_seq_length $max_seq_length
 		python ./prepare_data.py -i $cache_dir/wiki103/wiki.valid.tokens -o $data_dir/valid.txt --max_seq_length $max_seq_length
-		python ./prepare_data.py -i $cache_dir/wiki103/wiki.test.tokens -o $data_dir/test.txt --max_seq_length $max_seq_length
+		python ./prepare_data.py -i $cache_dir/wiki103/wiki.test.tokens  -o $data_dir/test.txt  --max_seq_length $max_seq_length
 	fi
 }
 
