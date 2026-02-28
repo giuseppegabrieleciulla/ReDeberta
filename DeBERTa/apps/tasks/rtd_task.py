@@ -67,15 +67,36 @@ class RTDModel(NNModule):
 
   def _pre_load_hook(self, state_dict, prefix, local_metadata, strict,
       missing_keys, unexpected_keys, error_msgs):
-    new_state = dict()
+    import re
     bert_prefix = prefix + 'bert.'
     deberta_prefix = prefix + 'deberta.'
+    
+    # Prefix mapping: bert.* -> deberta.*
     for k in list(state_dict.keys()):
       if k.startswith(bert_prefix):
         nk = deberta_prefix + k[len(bert_prefix):]
         value = state_dict[k]
         del state_dict[k]
         state_dict[nk] = value
+
+    # Recurrent weight mapping for the discriminator
+    # Check if the module being loaded is the discriminator and has use_recurrent set
+    is_discriminator_load = (prefix == 'discriminator.')
+    disc_config = getattr(self.config, 'discriminator', None) if hasattr(self, 'config') else None
+    if is_discriminator_load and disc_config is not None and getattr(disc_config, 'use_recurrent', False):
+      recurrent_layer_idx = getattr(disc_config, 'recurrent_layer', 0)
+      if recurrent_layer_idx >= 0:
+        layer_key = deberta_prefix + f'encoder.layer.{recurrent_layer_idx}.'
+        target_key = deberta_prefix + 'encoder.layer.'
+        
+        for k in list(state_dict.keys()):
+          if k.startswith(layer_key):
+            nk = target_key + k[len(layer_key):]
+            if nk not in state_dict:
+              state_dict[nk] = state_dict[k]
+          # Remove all numbered layer keys (they no longer exist in recurrent model)
+          if re.match(rf"^{re.escape(deberta_prefix)}encoder\.layer\.\d+\.", k):
+            del state_dict[k]
 
   def forward(self, **kwargs):
     return self.generator_fw(**kwargs)

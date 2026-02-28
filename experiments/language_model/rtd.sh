@@ -87,6 +87,21 @@ case ${init,,} in
 	--decoupled_training True \
 	--fp16 True "
 		;;
+	recurrent-deberta-v3-large)
+	# Recurrent DeBERTa-v3-Large: single shared layer (Layer 0) as discriminator.
+	# Run extract_layer0.py first to generate the init checkpoint:
+	#   python experiments/language_model/extract_layer0.py --output /tmp/layer0_disc.bin
+	LAYER0_DISC=${LAYER0_DISC:-/tmp/layer0_disc.bin}
+	parameters=" --num_train_epochs 1 \
+	--model_config rtd_recurrent_large.json \
+	--warmup 10000 \
+	--learning_rate 1e-4 \
+	--train_batch_size 64 \
+	--accumulative_update 4 \
+	--decoupled_training True \
+	--fp16 True \
+	--init_discriminator $LAYER0_DISC"
+		;;
 	*)
 		echo "usage $0 <Pretrained model configuration>"
 		echo "Supported configurations"
