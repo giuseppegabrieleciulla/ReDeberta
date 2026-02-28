@@ -79,14 +79,15 @@ class RecurrentBertEncoder(nn.Module):
         batch_size = next_kv.size(0)
         device = next_kv.device
 
+        dtype = next_kv.dtype
         # ACT loop state
         accumulated_states = torch.zeros_like(next_kv)
-        cumulative_halting_probs = torch.zeros(batch_size, 1, 1, device=device)
+        cumulative_halting_probs = torch.zeros(batch_size, 1, 1, device=device, dtype=dtype)
         updates = torch.zeros(batch_size, 1, 1, dtype=torch.bool, device=device)
 
         # Expected steps (ponder cost)
-        expected_steps = torch.zeros(batch_size, 1, 1, device=device)
-        total_steps_taken = torch.ones(batch_size, 1, 1, device=device)
+        expected_steps = torch.zeros(batch_size, 1, 1, device=device, dtype=dtype)
+        total_steps_taken = torch.ones(batch_size, 1, 1, device=device, dtype=dtype)
 
         all_encoder_layers = []
         att_matrices = []
@@ -117,7 +118,7 @@ class RecurrentBertEncoder(nn.Module):
             else:
                 p_t = torch.where(c_t < remainder, c_t, remainder)
             
-            p_t = p_t * still_running.float()
+            p_t = p_t * still_running.to(dtype)
             
             accumulated_states = accumulated_states + p_t * output_states
             cumulative_halting_probs = cumulative_halting_probs + p_t
@@ -125,7 +126,7 @@ class RecurrentBertEncoder(nn.Module):
             expected_steps = expected_steps + p_t * (i + 1)
             
             new_updates = cumulative_halting_probs >= self.halting_threshold
-            total_steps_taken = total_steps_taken + (still_running & ~new_updates).float()
+            total_steps_taken = total_steps_taken + (still_running & ~new_updates).to(dtype)
             updates = updates | new_updates
             
             next_kv = output_states
