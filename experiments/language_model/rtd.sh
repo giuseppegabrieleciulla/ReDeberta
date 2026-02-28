@@ -103,9 +103,11 @@ case ${init,,} in
 		;;
 	recurrent-deberta-v3-large)
 	# Recurrent DeBERTa-v3-Large: single shared layer (Layer 0) as discriminator.
-	# Run extract_layer0.py first to generate the init checkpoint:
-	#   python experiments/language_model/extract_layer0.py --output /tmp/layer0_disc.bin
 	LAYER0_DISC=${LAYER0_DISC:-/tmp/layer0_disc.bin}
+	if [[ ! -e $LAYER0_DISC ]]; then
+		echo "Extracting Layer 0 weights from DeBERTa-v3-Large -> $LAYER0_DISC"
+		python ../../experiments/language_model/extract_layer0.py --output $LAYER0_DISC
+	fi
 	parameters=" --num_train_epochs 1 \
 	--model_config rtd_recurrent_large.json \
 	--warmup 10000 \
