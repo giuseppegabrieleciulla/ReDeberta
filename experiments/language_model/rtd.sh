@@ -131,7 +131,7 @@ esac
 python -m DeBERTa.apps.run --model_config config.json  \
 	--tag $tag \
 	--do_train \
-	--num_training_steps 1000000 \
+	--num_training_steps ${NUM_STEPS:-1000000} \
 	--max_seq_len $max_seq_length \
 	--dump 10000 \
 	--task_name $Task \
