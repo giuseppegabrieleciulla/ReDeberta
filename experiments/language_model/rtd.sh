@@ -110,7 +110,7 @@ case ${init,,} in
 	fi
 	parameters=" --num_train_epochs 1 \
 	--model_config rtd_recurrent_large.json \
-	--warmup 10000 \
+	--warmup ${WARMUP:-10000} \
 	--learning_rate 1e-4 \
 	--train_batch_size 64 \
 	--accumulative_update 4 \
